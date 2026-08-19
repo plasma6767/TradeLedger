@@ -1,0 +1,15 @@
+[project]
+name = "tradeledger"
+version = "0.1.0"
+description = "End-to-end NBA analytics pipeline: possession-level RAPM, aging-curve projections, contract surplus value, and roster fit modeling."
+requires-python = ">=3.12"
+dependencies = [
+    "nba_api>=1.5",
+    "pandas>=2.2",
+    "numpy>=1.26",
+    "scikit-learn>=1.4",
+    "requests>=2.31",
+]
+
+[tool.uv]
+package = false

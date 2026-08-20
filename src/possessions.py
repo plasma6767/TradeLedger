@@ -16,12 +16,23 @@ def add_elapsed_column(pbp_df):
 
 
 def _parse_ft_subtype(subtype):
-    # Technical and Flagrant free throws don't end a possession - the
-    # fouled team retains the ball regardless of makes/misses.
-    if "Technical" in subtype or "Flagrant" in subtype:
-        return None, None
+    """Technical: play resumes with whoever had the ball before, regardless
+    of which team the tech was on - no possession effect either way.
+    Flagrant: the fouled team is awarded the ball afterward, period,
+    whether the free throw is made or missed. The shooter is always the
+    fouled player (you can't shoot FTs for your own foul), so the
+    shooter's team on the row IS the team that gets the ball - this
+    correctly handles the offense committing a flagrant too, not just
+    the common defense-fouls-offense case.
+    Normal shooting foul: same as a made/missed shot - made switches
+    possession, missed goes to a rebound."""
+    if "Technical" in subtype:
+        return "technical", None, None
+    if "Flagrant" in subtype:
+        m = re.match(r"Free Throw Flagrant (\d+) of (\d+)", subtype)
+        return "flagrant", int(m.group(1)), int(m.group(2))
     m = re.match(r"Free Throw (\d+) of (\d+)", subtype)
-    return int(m.group(1)), int(m.group(2))
+    return "normal", int(m.group(1)), int(m.group(2))
 
 
 def detect_possessions(pbp_df):
@@ -72,15 +83,22 @@ def detect_possessions(pbp_df):
             offense_team = opponent(tt)
 
         elif at == "Free Throw":
-            x, y = _parse_ft_subtype(row["subType"])
-            if x is None:
-                continue  # technical FT: no possession effect
+            kind, x, y = _parse_ft_subtype(row["subType"])
+            if kind == "technical":
+                continue  # no possession effect at all
             last_shot_team = tt
             is_last = x == y
-            is_miss = row["description"].strip().upper().startswith("MISS")
-            if is_last and not is_miss:
+            if not is_last:
+                continue
+            if kind == "flagrant":
                 close(elapsed)
-                offense_team = opponent(tt)
+                offense_team = tt  # fouled team is awarded the ball, make or miss
+            else:
+                is_miss = row["description"].strip().upper().startswith("MISS")
+                if not is_miss:
+                    close(elapsed)
+                    offense_team = opponent(tt)
+                # if missed, wait for the rebound event as usual
 
         elif at == "Rebound":
             if tt == last_shot_team:

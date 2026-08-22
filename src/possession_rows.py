@@ -12,9 +12,27 @@ def lineup_at(rot_df, team_id, t):
     return set(on["PERSON_ID"])
 
 
+def check_rotation_consistency(rot_df):
+    """Some games have genuinely corrupted GameRotation data - a player
+    with two overlapping stints, recorded as on the court twice at once.
+    Check for that directly (per player) rather than only noticing it
+    indirectly as a bad lineup count downstream."""
+    for _, player_stints in rot_df.groupby("PERSON_ID"):
+        stints = player_stints.sort_values("IN_TIME_REAL")
+        ins = stints["IN_TIME_REAL"].tolist()
+        outs = stints["OUT_TIME_REAL"].tolist()
+        for i in range(len(ins) - 1):
+            if ins[i + 1] < outs[i]:
+                return False
+    return True
+
+
 def build_game_rows(game_id):
     pbp = fetch_playbyplay(game_id)
     rot = fetch_game_rotation(game_id)
+
+    if not check_rotation_consistency(rot):
+        raise ValueError(f"{game_id}: GameRotation has overlapping stints - corrupted source data, excluding game")
 
     sub_boundaries = sorted(set(rot["IN_TIME_REAL"]) | set(rot["OUT_TIME_REAL"]))
     possessions, team_ids = detect_possessions(pbp, sub_boundaries=sub_boundaries)

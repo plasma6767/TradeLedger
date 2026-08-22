@@ -42,22 +42,33 @@ def add_elapsed_column(pbp_df):
 def _parse_ft_subtype(subtype):
     """Technical: play resumes with whoever had the ball before, regardless
     of which team the tech was on - no possession effect either way.
-    Flagrant: the fouled team is awarded the ball afterward, period,
-    whether the free throw is made or missed. The shooter is always the
-    fouled player (you can't shoot FTs for your own foul), so the
-    shooter's team on the row IS the team that gets the ball.
-    Normal shooting foul: usually the ball just switches to the other team
-    on a make - except there are other foul subtypes (e.g. Away From Play,
-    Transition Take) that also award continued possession instead, so we
-    don't hard-code "opponent gets it" here; the next real event reveals
-    who actually has the ball, same as we do at period starts."""
+    Flagrant/Clear Path: the fouled team is awarded the ball afterward,
+    period, whether the free throw is made or missed. The shooter is
+    always the fouled player (you can't shoot FTs for your own foul), so
+    the shooter's team on the row IS the team that gets the ball.
+    Normal (including any foul subtype we haven't specifically named,
+    like Away From Play or Transition Take): usually the ball just
+    switches to the other team on a make, except some foul subtypes
+    award continued possession instead - so we don't hard-code "opponent
+    gets it" for the plain case; the next real event reveals who actually
+    has the ball, same as at period starts. This means an unrecognized
+    future foul subtype degrades safely to "wait and see" rather than a
+    wrong hard-coded assumption.
+
+    The "X of Y" numbers are always the last two numbers in the string
+    regardless of which foul-type words appear before them, so we extract
+    them positionally instead of hard-coding the exact text for every
+    subtype we've seen - keeps a totally new wording from crashing this.
+    Technical FTs don't need x/y at all (the caller ignores them), and
+    some games format "Free Throw Technical" with no trailing number, so
+    check for that case before attempting to parse one."""
     if "Technical" in subtype:
         return "technical", None, None
-    if "Flagrant" in subtype:
-        m = re.match(r"Free Throw Flagrant (\d+) of (\d+)", subtype)
-        return "flagrant", int(m.group(1)), int(m.group(2))
-    m = re.match(r"Free Throw (\d+) of (\d+)", subtype)
-    return "normal", int(m.group(1)), int(m.group(2))
+    m = re.search(r"(\d+) of (\d+)$", subtype)
+    x, y = int(m.group(1)), int(m.group(2))
+    if "Flagrant" in subtype or "Clear Path" in subtype:
+        return "flagrant", x, y
+    return "normal", x, y
 
 
 def detect_possessions(pbp_df, sub_boundaries=None):

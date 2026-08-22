@@ -32,9 +32,13 @@ def build_player_name_map():
 PER_GAME_DIR = PROCESSED_DIR / "by_game"
 
 
-def load_possessions():
-    files = sorted(PER_GAME_DIR.glob("*.parquet"))
-    df = pd.concat([pd.read_parquet(f) for f in files], ignore_index=True)
+def load_possessions(season="2025-26"):
+    combined_path = PROCESSED_DIR / f"possessions_{season}.parquet"
+    if combined_path.exists():
+        df = pd.read_parquet(combined_path)
+    else:
+        files = sorted(PER_GAME_DIR.glob("*.parquet"))
+        df = pd.concat([pd.read_parquet(f) for f in files], ignore_index=True)
     df["offense_players"] = df["offense_players"].apply(lambda s: [int(x) for x in s.split(",")])
     df["defense_players"] = df["defense_players"].apply(lambda s: [int(x) for x in s.split(",")])
     return df

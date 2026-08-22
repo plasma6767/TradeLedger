@@ -11,7 +11,7 @@ scope and progress — update it as phases complete.
 ## Stack
 
 - Python 3.14, managed with `uv` (`.venv/`, `pyproject.toml`, `uv.lock`)
-- Core deps: `nba_api`, `pandas`, `numpy`, `scikit-learn`, `requests`
+- Core deps: `nba_api`, `pandas`, `numpy`, `scikit-learn`, `scipy`, `requests`, `pyarrow`
 - `[tool.uv] package = false` — this is an application/analysis project, not
   a distributable library, so no `src/<pkgname>/` build layout needed
 

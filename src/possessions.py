@@ -179,7 +179,12 @@ def detect_possessions(pbp_df, sub_boundaries=None):
 
         elif at == "Free Throw":
             kind, x, y = _parse_ft_subtype(row["subType"])
-            is_miss = row["description"].strip().upper().startswith("MISS")
+            # Not text-matching "MISS" in the description: a real player is
+            # named Missi, and "Missi Free Throw 2 of 2" starts with those
+            # same 4 letters, misclassifying his makes as misses.
+            # pointsTotal is 0 on a miss and the actual cumulative score on
+            # a make, independent of anyone's name.
+            is_miss = row["pointsTotal"] == 0
             if not is_miss:
                 points_by_team[tt] += 1
             if kind == "technical":

@@ -13,10 +13,19 @@ def lineup_at(rot_df, team_id, t):
 
 
 def check_rotation_consistency(rot_df):
-    """Some games have genuinely corrupted GameRotation data - a player
-    with two overlapping stints, recorded as on the court twice at once.
-    Check for that directly (per player) rather than only noticing it
-    indirectly as a bad lineup count downstream."""
+    """Some games have genuinely corrupted GameRotation data. Two known
+    failure modes, both checked here:
+    1. A player with two overlapping stints - recorded on the court twice
+       at once.
+    2. Missing stints scattered through the game - the union of all
+       players' time covers the full game with no gaps, but at some
+       individual moments fewer than 5 players are actually on the floor,
+       because some player's stint for that stretch just isn't in the
+       data. Checking this requires walking every boundary and counting
+       who's on the floor at each one, same as the original
+       validate_rotation.py check - that full check just hadn't been
+       carried over into this production path, which is exactly how this
+       slipped through initially."""
     for _, player_stints in rot_df.groupby("PERSON_ID"):
         stints = player_stints.sort_values("IN_TIME_REAL")
         ins = stints["IN_TIME_REAL"].tolist()
@@ -24,6 +33,17 @@ def check_rotation_consistency(rot_df):
         for i in range(len(ins) - 1):
             if ins[i + 1] < outs[i]:
                 return False
+
+    for team_id, team_df in rot_df.groupby("TEAM_ID"):
+        boundaries = sorted(set(team_df["IN_TIME_REAL"]) | set(team_df["OUT_TIME_REAL"]))
+        game_end = team_df["OUT_TIME_REAL"].max()
+        for t in boundaries:
+            if t >= game_end:
+                continue
+            on_court = team_df[(team_df["IN_TIME_REAL"] <= t) & (team_df["OUT_TIME_REAL"] > t)]
+            if len(on_court) != 5:
+                return False
+
     return True
 
 
@@ -32,7 +52,7 @@ def build_game_rows(game_id):
     rot = fetch_game_rotation(game_id)
 
     if not check_rotation_consistency(rot):
-        raise ValueError(f"{game_id}: GameRotation has overlapping stints - corrupted source data, excluding game")
+        raise ValueError(f"{game_id}: GameRotation is inconsistent - corrupted source data, excluding game")
 
     sub_boundaries = sorted(set(rot["IN_TIME_REAL"]) | set(rot["OUT_TIME_REAL"]))
     possessions, team_ids = detect_possessions(pbp, sub_boundaries=sub_boundaries)
@@ -41,7 +61,15 @@ def build_game_rows(game_id):
     for p in possessions:
         offense_id = p["offense_team_id"]
         defense_id = team_ids[0] if offense_id == team_ids[1] else team_ids[1]
-        mid = (p["start"] + p["end"]) / 2
+        # Query just before the midpoint, not exactly at it: for a
+        # zero-width window sitting at the literal end of the game (e.g. a
+        # buzzer-beater at start=end=28800), querying exactly at 28800
+        # finds no lineup at all, since no stint extends past the buzzer -
+        # even though real players (and real points) existed right up to
+        # that instant. 0.5 is smaller than the finest real time
+        # resolution (whole tenths), so this can never cross into a
+        # different, wrong window for any normal (non-zero-width) case.
+        mid = max(0, (p["start"] + p["end"]) / 2 - 0.5)
 
         offense_players = lineup_at(rot, offense_id, mid)
         defense_players = lineup_at(rot, defense_id, mid)

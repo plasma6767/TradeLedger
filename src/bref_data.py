@@ -69,9 +69,15 @@ def fetch_season_advanced(season: str, sleep: float = 3.0) -> pd.DataFrame:
     df["VORP"] = pd.to_numeric(df["VORP"], errors="coerce")
     df = df.dropna(subset=["Age", "BPM", "VORP"])
 
-    has_multi_team = df.duplicated(subset=["player_id"], keep=False) & (df["Team"] != "TOT")
+    # BR's combined-team row for a traded player is labeled "2TM"/"3TM"/
+    # "4TM" (never literally "TOT", despite older docs/tools assuming
+    # that) - matching the wrong label here doesn't just double-count
+    # traded players, it silently drops them entirely, since neither
+    # their per-team rows nor their combined row would ever look "kept"
+    is_combined_row = df["Team"].str.match(r"^\dTM$")
+    has_multi_team = df.duplicated(subset=["player_id"], keep=False) & ~is_combined_row
     traded_players = set(df.loc[has_multi_team, "player_id"])
-    df = df[~(df["player_id"].isin(traded_players) & (df["Team"] != "TOT"))]
+    df = df[~(df["player_id"].isin(traded_players) & ~is_combined_row)]
 
     df["season"] = season
     df = df.reset_index(drop=True)

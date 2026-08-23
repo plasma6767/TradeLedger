@@ -83,7 +83,24 @@ and roster fit, culminating in a decision-support tool.
       unstable for any player whose value sits near replacement level -
       percentile subtraction stays bounded for everyone, so no player is
       excluded from the ranking. See `src/` module breakdown below.
-- [ ] Phase 4 — Fit layer (shot/play-type complementarity)
+- [x] **Phase 4 — Fit layer**: complete. Reduces every currently-rostered
+      player to two "diets" - % of shots by court zone, % of offensive
+      possessions by play type - and blends a team's current roster into a
+      team-level diet weighted by playing time. A candidate's fit against
+      that team is a distributional overlap score (shared ground between
+      the two diets, zone/play-type by zone/play-type) subtracted from 1.
+      That raw number is structurally compressed (no real player is ever
+      100% unlike a team, since everyone shares some baseline habits with
+      every roster), so a genuinely great complement still only scores
+      ~60-70% raw - reading it at face value undersells real fits. The
+      headline conclusion is instead a letter grade calibrated against the
+      real spread of fit scores within the actual candidate pool (top 10%
+      -> A, bottom 10% -> F), not fixed thresholds against the raw number's
+      own scale. Validated against a real team (OKC): top-graded fits were
+      almost entirely traditional rim-running bigs, bottom-graded were
+      almost entirely perimeter wings - correctly identifying the actual
+      gap in OKC's real (guard/wing-heavy) roster construction rather than
+      producing plausible-looking noise. See `src/` module breakdown below.
 - [ ] Phase 5 — Decision layer (tool + memo)
 
 ## Phase 1 module breakdown (`src/`)
@@ -164,6 +181,40 @@ and roster fit, culminating in a decision-support tool.
   over the same years (estimating unpublished future caps from real recent
   cap growth); and combines both into `surplus_score` via percentile-rank
   subtraction.
+
+## Phase 4 module breakdown (`src/`)
+
+- `roster_data.py` — fetches and caches current team rosters via
+  `nba_api`'s `commonteamroster`, one call per team. Basketball-Reference's
+  season file (`bref_data.py`) deliberately keeps only the combined-season
+  row for traded players, so it has no reliable "who's on this roster
+  right now" signal - this module is the actual source of truth for that,
+  since fit is inherently team-scoped.
+- `shot_profile_data.py` — fetches and caches the two raw playing-style
+  inputs: shot location (`shotchartdetail`, one call per player - no bulk
+  mode exists for that endpoint) and play-type frequency
+  (`synergyplaytypes`, one call per play type - that endpoint returns
+  every player at once, so 11 calls covers the whole league instead of
+  one per player).
+- `roster_fit.py` — the fit math, and the module that ties everything
+  together. Reduces each player to two "diets" (% of shots by court zone,
+  % of possessions by play type - with zones/play-types a player never
+  touched filled in as 0, not dropped, since a player is simply absent
+  from a category's table rather than present with a 0). Blends a team's
+  current roster into one team-level diet weighted by playing time (total
+  synergy possessions, used as a proxy since it's already part of this
+  phase's own data rather than pulling in Phase 2/3's cross-source name
+  matching just for a weight). A candidate's fit is `1 - overlap`, where
+  overlap is the summed shared ground between the candidate's and team's
+  diets category by category; players traded mid-season have one row per
+  team stint in this data (no combined row like BR's contracts table), so
+  stints are combined via a games-played-weighted average, not summed or
+  arbitrarily picked. The headline `fit_grade` (A-F) is calibrated against
+  the real spread of raw fit scores within the actual candidate pool
+  rather than fixed thresholds, since the raw score is structurally
+  compressed - no real player is ever a 100% unlike a real team, so even a
+  great complement only scores ~60-70% raw, which reads as mediocre taken
+  at face value but is actually the top of the real distribution.
 
 ## Working conventions
 

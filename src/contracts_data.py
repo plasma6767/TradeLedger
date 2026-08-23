@@ -69,7 +69,14 @@ def parse_contracts_html(html_text: str) -> pd.DataFrame:
 
     df = df.rename(columns={"Player": "player", "Tm": "team", "Guaranteed": "guaranteed"})
     keep = ["player_id", "player", "team", *year_cols, "guaranteed"]
-    return df[keep].reset_index(drop=True)
+    df = df[keep]
+
+    # a handful of players (recent trades/sign-and-trades where the page
+    # hasn't settled on one team) show up as two rows with identical dollar
+    # figures under two different teams - same real contract counted twice,
+    # not two obligations to sum, so keep just one row per player
+    df = df.drop_duplicates(subset="player_id", keep="first")
+    return df.reset_index(drop=True)
 
 
 def parse_cap_history_html(html_text: str) -> pd.DataFrame:

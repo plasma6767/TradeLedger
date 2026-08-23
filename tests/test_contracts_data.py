@@ -11,8 +11,8 @@ def test_parse_contracts_html_extracts_player_ids_and_year_columns():
     html_text = (FIXTURES / "bref_contracts_sample.html").read_text()
     df = parse_contracts_html(html_text)
 
-    assert list(df["player_id"]) == ["curryst01", "tatumja01", "banchpa01"]
-    assert list(df["player"]) == ["Stephen Curry", "Jayson Tatum", "Paolo Banchero"]
+    assert list(df["player_id"]) == ["curryst01", "tatumja01", "banchpa01", "bealbr01"]
+    assert list(df["player"]) == ["Stephen Curry", "Jayson Tatum", "Paolo Banchero", "Bradley Beal"]
     assert "2026-27" in df.columns and "2031-32" in df.columns
 
 
@@ -46,11 +46,24 @@ def test_parse_contracts_html_survives_a_colspan_divider_row_mid_table():
     html_text = (FIXTURES / "bref_contracts_sample.html").read_text()
     df = parse_contracts_html(html_text)
 
-    assert len(df) == 3
-    assert list(df["player_id"]) == ["curryst01", "tatumja01", "banchpa01"]
+    assert len(df) == 4
+    assert list(df["player_id"])[:3] == ["curryst01", "tatumja01", "banchpa01"]
     banchero = df[df["player_id"] == "banchpa01"].iloc[0]
     assert banchero["player"] == "Paolo Banchero"
     assert banchero["2026-27"] == 12_585_900
+
+
+def test_parse_contracts_html_dedupes_a_player_listed_under_two_teams():
+    """Basketball-Reference sometimes lists a recently-traded player twice,
+    once under each team, with identical dollar figures - the fixture has
+    Bradley Beal under both PHO and LAC. Summing those would double his
+    real salary; the fix is to keep just one row per player."""
+    html_text = (FIXTURES / "bref_contracts_sample.html").read_text()
+    df = parse_contracts_html(html_text)
+
+    beal_rows = df[df["player_id"] == "bealbr01"]
+    assert len(beal_rows) == 1
+    assert beal_rows.iloc[0]["2026-27"] == 25_807_810
 
 
 def test_parse_cap_history_html_handles_the_html_comment_wrapper():

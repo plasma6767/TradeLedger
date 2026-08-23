@@ -46,6 +46,7 @@ def make_universe():
         "avg_value": [6.5, 1.0, -1.5],
         "avg_cap_pct": [0.30, 0.10, 0.01],
         "years_left": [3, 2, 1],
+        "minutes": [2200.0, 1800.0, 411.0],
     })
 
 
@@ -58,12 +59,20 @@ def test_rank_by_surplus_sorts_descending_and_explains_why():
     assert "95th percentile production" in result.iloc[0]["reasoning"]
 
 
+def test_rank_by_surplus_surfaces_minutes_played_for_sample_size_context():
+    """Surplus score has no minutes floor - a bargain built on a tiny
+    sample should still say so in plain sight, not hide it."""
+    result = rank_by_surplus(make_universe()).set_index("player")
+    assert "411 min this season" in result.loc["Bench", "reasoning"]
+
+
 # --- rank_by_rapm -----------------------------------------------------------
 
 def test_rank_by_rapm_sorts_descending_with_percentile_reasoning():
     result = rank_by_rapm(make_universe())
     assert list(result["player"]) == ["Star", "Average", "Bench"]
     assert "100th percentile" in result.iloc[0]["reasoning"]
+    assert "2200 min" in result.iloc[0]["reasoning"]
 
 
 # --- rank_by_current_bpm -----------------------------------------------------
@@ -131,6 +140,7 @@ def test_player_detail_assembles_projection_and_diets():
     detail = player_detail(row, shots, playtype_rows, all_play_types=["Isolation", "Spotup"])
 
     assert detail["player"] == "Star"
+    assert detail["minutes"] == pytest.approx(2200.0)
     assert detail["surplus_score"] == pytest.approx(40.0)
     assert [p["years"] for p in detail["projection"]] == [1, 3]
     assert detail["shot_diet"]["Restricted Area"] == pytest.approx(0.75)

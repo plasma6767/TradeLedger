@@ -35,24 +35,31 @@ def _ordinal(n: float) -> str:
 
 
 def rank_by_surplus(universe: pd.DataFrame) -> pd.DataFrame:
-    """Default GM view: best contract value first."""
+    """Default GM view: best contract value first. Surplus score has no
+    minutes floor (unlike current_bpm/projected BPM below, which
+    player_report.py already hides under 500 minutes rather than showing
+    an unreliable number) - RAPM's own regularization keeps a small-sample
+    player's number from being a wild outlier, but it's still built on
+    less data than a starter's, so minutes played is surfaced in the
+    reasoning rather than left invisible."""
     table = universe.sort_values("surplus_score", ascending=False).copy()
     table["reasoning"] = [
         f"surplus score {score:+.0f} ({_ordinal(value_pct)} percentile production vs "
-        f"{_ordinal(cost_pct)} percentile cost)"
-        for score, value_pct, cost_pct in zip(
-            table["surplus_score"], table["value_percentile"], table["cost_percentile"]
+        f"{_ordinal(cost_pct)} percentile cost) - {minutes:.0f} min this season"
+        for score, value_pct, cost_pct, minutes in zip(
+            table["surplus_score"], table["value_percentile"], table["cost_percentile"], table["minutes"]
         )
     ]
     return table.reset_index(drop=True)
 
 
 def rank_by_rapm(universe: pd.DataFrame) -> pd.DataFrame:
+    """Also has no minutes floor - see rank_by_surplus."""
     table = universe.sort_values("rapm", ascending=False).copy()
     percentile = _percentile(table["rapm"])
     table["reasoning"] = [
-        f"{rapm:+.1f} RAPM this season ({_ordinal(pct)} percentile leaguewide)"
-        for rapm, pct in zip(table["rapm"], percentile)
+        f"{rapm:+.1f} RAPM this season ({_ordinal(pct)} percentile leaguewide) - {minutes:.0f} min"
+        for rapm, pct, minutes in zip(table["rapm"], percentile, table["minutes"])
     ]
     return table.reset_index(drop=True)
 
@@ -87,7 +94,7 @@ def rank_by_fit(universe: pd.DataFrame, team_abbreviation: str, season: str = CU
     sort - a great fit who's badly overpaid still sorts by fit here, with
     the bad contract visible in the reasoning, not hidden by it."""
     fit = build_team_fit_table(team_abbreviation, season)
-    context_cols = ["nba_player_id", "team", "age", "rapm", "surplus_score"]
+    context_cols = ["nba_player_id", "team", "age", "rapm", "surplus_score", "minutes"]
     table = fit.merge(universe[context_cols], left_on="player_id", right_on="nba_player_id", how="left")
     table["reasoning"] = [
         f"fit grade {grade} ({raw:.0f}% raw fit for {team_abbreviation}) - "
@@ -117,6 +124,7 @@ def player_detail(
         "player": universe_row["player"],
         "team": universe_row.get("team"),
         "age": universe_row["age"],
+        "minutes": universe_row.get("minutes"),
         "rapm": universe_row["rapm"],
         "current_bpm": universe_row.get("current_bpm"),
         "surplus_score": universe_row["surplus_score"],

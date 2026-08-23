@@ -1,6 +1,6 @@
 import pandas as pd
 
-from src.player_universe import add_current_team, add_nba_player_ids
+from src.player_universe import add_current_team, add_minutes, add_nba_player_ids
 
 
 # --- add_nba_player_ids --------------------------------------------------
@@ -32,6 +32,23 @@ def test_add_nba_player_ids_normalizes_suffixes_and_accents():
     rapm = pd.DataFrame({"player_id": [7], "name": ["Luka Dončić"], "rapm": [9.0]})
     result = add_nba_player_ids(table, rapm)
     assert result["nba_player_id"].iloc[0] == 7
+
+
+# --- add_minutes -----------------------------------------------------------
+
+def test_add_minutes_joins_on_player_name():
+    table = pd.DataFrame({"player": ["A", "B"]})
+    minutes = pd.DataFrame({"player": ["A", "B"], "minutes": [1800, 411]})
+    result = add_minutes(table, minutes)
+    assert result.set_index("player")["minutes"].to_dict() == {"A": 1800, "B": 411}
+
+
+def test_add_minutes_keeps_a_player_missing_from_the_minutes_source():
+    table = pd.DataFrame({"player": ["A"]})
+    minutes = pd.DataFrame({"player": ["Someone Else"], "minutes": [1000]})
+    result = add_minutes(table, minutes)
+    assert len(result) == 1
+    assert pd.isna(result["minutes"].iloc[0])
 
 
 # --- add_current_team -----------------------------------------------------

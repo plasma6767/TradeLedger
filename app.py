@@ -73,23 +73,29 @@ def render_browse() -> None:
 
     if view == "Surplus score":
         st.subheader("Ranked by surplus score — best contract value first")
+        st.caption("'minutes' is this season's real minutes played — surplus score and RAPM have no "
+                   "minutes floor, so a small sample can rank high; use it to judge how much to trust the number.")
         table = rank_by_surplus(universe)
         show_selectable_table(
             table,
-            ["player", "team", "age", "surplus_score", "avg_value", "avg_cap_pct", "years_left", "reasoning"],
+            ["player", "team", "age", "minutes", "surplus_score", "avg_value", "avg_cap_pct", "years_left", "reasoning"],
             id_col="nba_player_id",
         )
 
     elif view == "RAPM":
         st.subheader("Ranked by last season's real RAPM")
+        st.caption("'minutes' is this season's real minutes played — RAPM has no minutes floor, "
+                   "so a small sample can still rank high; use it to judge how much to trust the number.")
         table = rank_by_rapm(universe)
-        show_selectable_table(table, ["player", "team", "age", "rapm", "reasoning"], id_col="nba_player_id")
+        show_selectable_table(
+            table, ["player", "team", "age", "minutes", "rapm", "reasoning"], id_col="nba_player_id"
+        )
 
     elif view == "Current BPM":
         st.subheader("Ranked by this season's real BPM")
         table = rank_by_current_bpm(universe)
         show_selectable_table(
-            table, ["player", "team", "age", "current_bpm", "reasoning"], id_col="nba_player_id"
+            table, ["player", "team", "age", "minutes", "current_bpm", "reasoning"], id_col="nba_player_id"
         )
 
     elif view == "Projected BPM":
@@ -97,7 +103,7 @@ def render_browse() -> None:
         st.subheader(f"Ranked by BPM projected {years} year{'s' if years > 1 else ''} forward")
         table = rank_by_projected_bpm(universe, years=years)
         show_selectable_table(
-            table, ["player", "team", "age", f"bpm_+{years}y", "reasoning"], id_col="nba_player_id"
+            table, ["player", "team", "age", "minutes", f"bpm_+{years}y", "reasoning"], id_col="nba_player_id"
         )
 
     elif view == "Fit for a team":
@@ -106,7 +112,7 @@ def render_browse() -> None:
         table = load_fit_view(team)
         show_selectable_table(
             table,
-            ["player_name", "team", "fit_grade", "raw_fit_pct", "surplus_score", "reasoning"],
+            ["player_name", "team", "fit_grade", "raw_fit_pct", "minutes", "surplus_score", "reasoning"],
             id_col="player_id",
         )
 
@@ -129,13 +135,14 @@ def render_player_detail() -> None:
 
     st.subheader(f"{detail['player']}" + (f" — {detail['team']}" if pd.notna(detail["team"]) else ""))
 
-    cols = st.columns(6)
+    cols = st.columns(7)
     cols[0].metric("Age", f"{detail['age']:.0f}")
-    cols[1].metric("RAPM", f"{detail['rapm']:+.1f}")
-    cols[2].metric("Current BPM", f"{detail['current_bpm']:+.1f}" if pd.notna(detail["current_bpm"]) else "—")
-    cols[3].metric("Surplus score", f"{detail['surplus_score']:+.0f}")
-    cols[4].metric("Avg cap %", f"{detail['avg_cap_pct'] * 100:.1f}%")
-    cols[5].metric("Years left", f"{detail['years_left']:.0f}")
+    cols[1].metric("Minutes", f"{detail['minutes']:.0f}" if pd.notna(detail["minutes"]) else "—")
+    cols[2].metric("RAPM", f"{detail['rapm']:+.1f}")
+    cols[3].metric("Current BPM", f"{detail['current_bpm']:+.1f}" if pd.notna(detail["current_bpm"]) else "—")
+    cols[4].metric("Surplus score", f"{detail['surplus_score']:+.0f}")
+    cols[5].metric("Avg cap %", f"{detail['avg_cap_pct'] * 100:.1f}%")
+    cols[6].metric("Years left", f"{detail['years_left']:.0f}")
 
     st.markdown("**Aging-curve projection** (this player's own BPM walked forward)")
     if detail["projection"]:

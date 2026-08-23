@@ -1,7 +1,14 @@
 """Join the outputs of Phases 1-3 into one table, one row per player:
-current team, age, real RAPM, real current BPM, projected BPM (+1y/+2y/+3y
-with bands), and contract surplus score. This is the table every Phase 5
-view reads from.
+current team, age, real minutes played, real RAPM, real current BPM,
+projected BPM (+1y/+2y/+3y with bands), and contract surplus score. This
+is the table every Phase 5 view reads from.
+
+Minutes played is carried through deliberately: RAPM and surplus_score
+have no minutes floor of their own (unlike current_bpm/projected BPM,
+which player_report.py already hides below its own 500-minute floor
+rather than showing an unreliable number), so a player with a handful of
+possessions can otherwise show up looking like a bargain with no visible
+signal that the number behind it is a small, noisier sample.
 
 Surplus value (surplus_value.py) and the BPM/projection report
 (player_report.py) are both keyed by Basketball-Reference player names -
@@ -26,6 +33,7 @@ from src.roster_data import fetch_all_rosters
 from src.surplus_value import build_surplus_table
 
 PROCESSED_DIR = Path(__file__).resolve().parent.parent / "data" / "processed"
+RAW_DIR = Path(__file__).resolve().parent.parent / "data" / "raw" / "bref_advanced"
 
 CURRENT_SEASON = "2025-26"
 
@@ -50,6 +58,15 @@ def add_nba_player_ids(table: pd.DataFrame, rapm: pd.DataFrame) -> pd.DataFrame:
     id_by_name = rapm.drop_duplicates(subset="name").set_index("name")["player_id"]
     table["nba_player_id"] = table["_rapm_name"].map(id_by_name)
     return table.drop(columns=["_rapm_name"])
+
+
+def add_minutes(table: pd.DataFrame, minutes: pd.DataFrame) -> pd.DataFrame:
+    """Joins in this season's real minutes played. `minutes` has `player`
+    (Basketball-Reference name) and `minutes` columns - the same season
+    file surplus_value.py and player_report.py already read, just with MP
+    kept instead of dropped. A player who somehow isn't in that file keeps
+    a missing minutes value rather than being dropped."""
+    return table.merge(minutes[["player", "minutes"]], on="player", how="left")
 
 
 def add_current_team(table: pd.DataFrame, rosters: pd.DataFrame) -> pd.DataFrame:
@@ -77,6 +94,11 @@ def build_player_universe(season: str = CURRENT_SEASON) -> pd.DataFrame:
 
     universe = add_nba_player_ids(universe, rapm)
 
+    minutes = pd.read_json(RAW_DIR / f"{season}.json")[["Player", "MP"]].rename(
+        columns={"Player": "player", "MP": "minutes"}
+    )
+    universe = add_minutes(universe, minutes)
+
     rosters = fetch_all_rosters(season)
     rosters = rosters.copy()
     rosters["team"] = rosters["TeamID"].map(team_abbreviations())
@@ -90,7 +112,7 @@ if __name__ == "__main__":
     pd.set_option("display.width", 200)
 
     print(f"\n{len(universe)} players in the universe\n")
-    display_cols = ["player", "team", "age", "rapm", "current_bpm", "surplus_score"]
+    display_cols = ["player", "team", "age", "minutes", "rapm", "current_bpm", "surplus_score"]
     print("Top 15 by surplus score:")
     print(universe.sort_values("surplus_score", ascending=False)[display_cols].head(15).to_string(index=False))
 

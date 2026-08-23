@@ -27,8 +27,7 @@ status.
 
 All data is public: [`nba_api`](https://github.com/swar/nba_api) for
 play-by-play, lineups, and shot chart data; Basketball-Reference for
-historical season stats; Spotrac/HoopsHype for contract and salary cap
-data.
+historical season stats, contract salaries, and salary cap history.
 
 ## Setup
 

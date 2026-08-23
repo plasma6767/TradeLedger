@@ -39,9 +39,13 @@ and roster fit, culminating in a decision-support tool.
 ## Data sources (all public)
 
 - `nba_api` — play-by-play, lineups, shot chart coordinates, play-type data
-- Basketball-Reference — historical season stats (for aging curves), salary
-  data
-- Spotrac / HoopsHype — current contracts and cap figures
+- Basketball-Reference — historical season stats (for aging curves),
+  contract salaries, and salary cap history (Spotrac and HoopsHype were
+  considered for contracts/cap data but ruled out: Spotrac blocks
+  automated requests outright, HoopsHype's salary table is JS-rendered and
+  paginated - Basketball-Reference's own contracts pages turned out to be
+  a clean, scrapable source using the same approach already proven for
+  season stats)
 
 ## Phases / status
 
@@ -63,7 +67,22 @@ and roster fit, culminating in a decision-support tool.
       Confidence bands are measured from the real spread of how players
       actually varied at each age, not an assumed round number. See
       `src/` module breakdown below.
-- [ ] Phase 3 — Cost layer (contracts, surplus value)
+- [x] **Phase 3 — Cost layer**: complete. Ranks every player's contract by
+      value relative to cost, league-wide. Value is this season's real RAPM
+      (Phase 1) walked forward using only the aging curve's plain average
+      delta per age (Phase 2's `project_bpm`, not the simulated-band
+      version - that's reserved for a future detail view), averaged across
+      however many years are left on the player's deal. Cost is each of
+      those years' salary as a percentage of that season's real salary cap
+      (extrapolated from real recent cap growth for years the league
+      hasn't published yet), also averaged across the same years, so a
+      1-year deal and a 5-year deal are judged on equal footing. The two
+      are combined by converting each to a percentile rank across the
+      league and subtracting (`value_percentile - cost_percentile`) rather
+      than dividing one by the other, since a ratio becomes undefined/
+      unstable for any player whose value sits near replacement level -
+      percentile subtraction stays bounded for everyone, so no player is
+      excluded from the ranking. See `src/` module breakdown below.
 - [ ] Phase 4 — Fit layer (shot/play-type complementarity)
 - [ ] Phase 5 — Decision layer (tool + memo)
 
@@ -122,6 +141,29 @@ and roster fit, culminating in a decision-support tool.
   and the aging-curve-projected BPM trend per player into one table —
   three separate signals shown side by side, never merged into a single
   score.
+
+## Phase 3 module breakdown (`src/`)
+
+- `contracts_data.py` — fetches and caches Basketball-Reference's contract
+  salaries and salary-cap-history tables. Parsing is split from the network
+  fetch (`parse_*` vs `fetch_*`) so it's testable against saved HTML
+  fixtures with no network calls. Handles two real data quirks found while
+  validating against the live page: a mid-table colspan divider row that
+  (if not filtered identically on both the pandas and the raw-HTML side)
+  silently misaligns every player_id after it, and a handful of
+  recently-traded players BR lists twice under two different teams with
+  identical dollar figures - deduped rather than summed, since it's the
+  same real contract, not two obligations. The cap-history table is
+  wrapped in an HTML comment (a trick BR uses on some secondary tables to
+  block naive scraping), stripped before parsing.
+- `surplus_value.py` — builds the ranked surplus-value table: joins
+  Phase 1's RAPM (via `name_matching`), each player's current age (via BR's
+  own player ID, shared directly with the contracts table - no fuzzy
+  matching needed there), and contract data; projects value forward per
+  the Phase 3 methodology above; computes cost as average cap percentage
+  over the same years (estimating unpublished future caps from real recent
+  cap growth); and combines both into `surplus_score` via percentile-rank
+  subtraction.
 
 ## Working conventions
 

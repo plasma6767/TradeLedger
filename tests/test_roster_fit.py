@@ -58,6 +58,17 @@ def test_player_playtype_diet_reindexes_missing_categories_to_zero():
     assert diet["Cut"] == 0.0
 
 
+def test_player_playtype_diet_handles_a_player_with_zero_rows():
+    """A player with no synergy rows at all (ran no recorded play type
+    this season) should get an all-zero diet, not crash - groupby().apply()
+    on a totally empty frame returns a DataFrame instead of a Series, which
+    used to break the reindex below it."""
+    rows = pd.DataFrame({"PLAY_TYPE": pd.array([], dtype=object), "POSS_PCT": pd.array([], dtype="float64"), "GP": pd.array([], dtype="int64")})
+    diet = player_playtype_diet(rows, all_play_types=["Isolation", "Spotup"])
+    assert diet["Isolation"] == 0.0
+    assert diet["Spotup"] == 0.0
+
+
 def test_player_playtype_diet_combines_traded_players_two_stints_by_games_played():
     """A player traded mid-season gets one row per team stint with no
     combined row in this data (unlike BR's contracts table) - the two

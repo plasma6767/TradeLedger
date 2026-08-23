@@ -11,12 +11,15 @@ scope and progress — update it as phases complete.
 ## Stack
 
 - Python 3.14, managed with `uv` (`.venv/`, `pyproject.toml`, `uv.lock`)
-- Core deps: `nba_api`, `pandas`, `numpy`, `scikit-learn`, `scipy`, `requests`, `pyarrow`
+- Core deps: `nba_api`, `pandas`, `numpy`, `scikit-learn`, `scipy`, `requests`, `pyarrow`, `streamlit`
 - `[tool.uv] package = false` — this is an application/analysis project, not
   a distributable library, so no `src/<pkgname>/` build layout needed
 
 ## Repo layout
 
+- `app.py` — the Phase 5 decision tool: a Streamlit UI (`streamlit run
+  app.py`) with no logic of its own, wiring `src/decision_views.py`'s
+  functions to a sidebar view picker and a player detail page
 - `src/` — real, reusable code (data fetch, possession building, models)
 - `tests/` — pytest suite, mirrors `src/` (`tests/test_foo.py` for
   `src/foo.py`); `tests/fixtures/` holds saved HTML/data samples so parsing

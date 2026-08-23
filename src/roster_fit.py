@@ -53,7 +53,14 @@ def player_playtype_diet(playtype_rows: pd.DataFrame, all_play_types: list[str])
     double-count. Play types the player never ran (he's simply absent from
     that play type's table, not present with 0) fill in as 0 against the
     full league-wide category list, not just whatever categories this one
-    player happens to have rows for."""
+    player happens to have rows for. A player with no rows at all (ran no
+    recorded play type this season) gets an all-zero diet directly -
+    groupby().apply() on a completely empty frame returns an empty
+    DataFrame rather than a Series (pandas can't infer the shape with zero
+    groups), which breaks the reindex below, so this case is handled
+    explicitly rather than relying on that."""
+    if playtype_rows.empty:
+        return pd.Series(0.0, index=all_play_types)
     weighted = playtype_rows.groupby("PLAY_TYPE").apply(
         lambda g: (g["POSS_PCT"] * g["GP"]).sum() / g["GP"].sum(), include_groups=False
     )

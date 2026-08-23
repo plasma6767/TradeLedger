@@ -18,11 +18,22 @@ scope and progress — update it as phases complete.
 ## Repo layout
 
 - `src/` — real, reusable code (data fetch, possession building, models)
+- `tests/` — pytest suite, mirrors `src/` (`tests/test_foo.py` for
+  `src/foo.py`); `tests/fixtures/` holds saved HTML/data samples so parsing
+  logic is testable with no network calls
 - `data/raw/` — untouched API pulls, gitignored (reproducible via `src/`
   scripts, not committed as files)
 - `data/processed/` — derived/cleaned datasets, gitignored
 - `notebooks/` — exploration, not production code
 - `docs/` — plan and methodology writeup
+
+## Testing
+
+- `uv run pytest` runs the full suite.
+- Split parsing/computation logic from network/file I/O (`parse_*` /
+  `fetch_*`, or similar) so the interesting logic is unit-testable without
+  hitting a live site or needing the full data cache built.
+- New modules should ship with tests alongside them, not as a follow-up.
 
 ## Git workflow (always follow)
 

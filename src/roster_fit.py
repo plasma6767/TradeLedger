@@ -18,6 +18,10 @@ undersells it. The fix: grade it against the real spread of fit scores
 across the actual candidate pool being compared, not fixed thresholds."""
 
 import pandas as pd
+from nba_api.stats.static import teams as nba_teams
+
+from src.roster_data import fetch_all_rosters
+from src.shot_profile_data import fetch_all_playtypes, fetch_players_shots
 
 SHOT_ZONES = [
     "Restricted Area", "In The Paint (Non-RA)", "Mid-Range",
@@ -125,3 +129,83 @@ def build_fit_table(
     table = pd.DataFrame(rows)
     table["fit_grade"] = assign_fit_grades(table["raw_fit_pct"])
     return table.sort_values("raw_fit_pct", ascending=False).reset_index(drop=True)
+
+
+def team_id_for_abbreviation(abbreviation: str) -> int:
+    for team in nba_teams.get_teams():
+        if team["abbreviation"] == abbreviation:
+            return team["id"]
+    raise ValueError(f"no team found for abbreviation {abbreviation!r}")
+
+
+def build_team_fit_table(team_abbreviation: str, season: str = "2025-26") -> pd.DataFrame:
+    """Fit table for every other currently-rostered player in the league
+    against one team's current roster. Ties together roster_data (who's on
+    what team right now) and shot_profile_data (shot/play-type raw pulls)
+    with this module's pure diet/overlap math."""
+    team_id = team_id_for_abbreviation(team_abbreviation)
+    rosters = fetch_all_rosters(season)
+    playtypes = fetch_all_playtypes(season)
+    all_play_types = sorted(playtypes["PLAY_TYPE"].unique())
+
+    player_ids = rosters["PLAYER_ID"].tolist()
+    shots_by_player = fetch_players_shots(player_ids, season)
+
+    shot_diets, playtype_diets, weights = {}, {}, {}
+    skipped_no_sample = []
+    for player_id in player_ids:
+        shots = shots_by_player[player_id]
+        pt_rows = playtypes[playtypes["PLAYER_ID"] == player_id]
+        # a two-way/deep-bench player who never registered a real FGA or a
+        # synergy possession this season has nothing to build a diet from -
+        # including him would divide by zero and poison the team blend
+        # with NaN, so he's dropped rather than counted as a blank profile
+        if len(shots) == 0 or pt_rows["POSS"].sum() == 0:
+            skipped_no_sample.append(player_id)
+            continue
+        shot_diets[player_id] = player_shot_zone_diet(shots)
+        playtype_diets[player_id] = player_playtype_diet(pt_rows, all_play_types)
+        weights[player_id] = player_total_possessions(pt_rows)
+
+    if skipped_no_sample:
+        print(f"WARNING: {len(skipped_no_sample)} rostered players had no usable shot/play-type sample: {skipped_no_sample}")
+
+    team_player_ids = [pid for pid in rosters.loc[rosters["TeamID"] == team_id, "PLAYER_ID"] if pid in shot_diets]
+    team_shot_diet = team_diet(
+        {pid: shot_diets[pid] for pid in team_player_ids}, {pid: weights[pid] for pid in team_player_ids}
+    )
+    team_playtype_diet = team_diet(
+        {pid: playtype_diets[pid] for pid in team_player_ids}, {pid: weights[pid] for pid in team_player_ids}
+    )
+
+    candidate_ids = [pid for pid in shot_diets if pid not in team_player_ids]
+    table = build_fit_table(
+        team_shot_diet, team_playtype_diet,
+        {pid: shot_diets[pid] for pid in candidate_ids},
+        {pid: playtype_diets[pid] for pid in candidate_ids},
+    )
+    names = rosters.drop_duplicates(subset=["PLAYER_ID"]).set_index("PLAYER_ID")["PLAYER"]
+    table["player_name"] = table["player_id"].map(names)
+    return table
+
+
+if __name__ == "__main__":
+    import sys
+
+    team_abbr = sys.argv[1] if len(sys.argv) > 1 else "OKC"
+    table = build_team_fit_table(team_abbr)
+    pd.set_option("display.width", 200)
+
+    print(f"\n{len(table)} candidates ranked for {team_abbr}\n")
+    display_cols = ["player_name", "shot_overlap", "playtype_overlap", "raw_fit_pct", "fit_grade"]
+
+    print("Best fits (top 15):")
+    print(table[display_cols].head(15).to_string(index=False))
+
+    print("\nWorst fits / most redundant (bottom 15):")
+    print(table[display_cols].tail(15).to_string(index=False))
+
+    from pathlib import Path
+    out_path = Path(__file__).resolve().parent.parent / "data" / "processed" / f"fit_{team_abbr}.csv"
+    table.to_csv(out_path, index=False)
+    print(f"\nSaved full table to {out_path}")

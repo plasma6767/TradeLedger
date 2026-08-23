@@ -125,3 +125,7 @@ if __name__ == "__main__":
     print(table.head(15).to_string())
     print("\nBottom 15:")
     print(table.tail(15).to_string())
+
+    out_path = PROCESSED_DIR / "rapm_2025-26.csv"
+    table.to_csv(out_path, index=False)
+    print(f"\nSaved to {out_path}")

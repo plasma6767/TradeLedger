@@ -54,7 +54,15 @@ and roster fit, culminating in a decision-support tool.
       Every game's reconstructed score matches the NBA's actual final
       score exactly except one, which is a confirmed data error in the
       NBA's own feed, not ours. See `src/` module breakdown below.
-- [ ] Phase 2 — Projection layer (aging curves) — up next
+- [x] **Phase 2 — Projection layer**: complete. Aging curve fit on 15
+      seasons of Basketball-Reference BPM (2011-12 through 2025-26),
+      since RAPM only exists for the one season Phase 1 covers and
+      isn't feasible to reprocess historically. Curve stays entirely in
+      BPM's own units — it projects a player's own BPM forward as a
+      separate signal, never converted into or blended with RAPM.
+      Confidence bands are measured from the real spread of how players
+      actually varied at each age, not an assumed round number. See
+      `src/` module breakdown below.
 - [ ] Phase 3 — Cost layer (contracts, surplus value)
 - [ ] Phase 4 — Fit layer (shot/play-type complementarity)
 - [ ] Phase 5 — Decision layer (tool + memo)
@@ -88,6 +96,32 @@ and roster fit, culminating in a decision-support tool.
 - `validate_clock_alignment.py`, `validate_rotation.py` — standalone
   scripts used to validate the approach before trusting it at scale; not
   part of the production pipeline but kept for reference.
+
+## Phase 2 module breakdown (`src/`)
+
+- `bref_data.py` — fetches and caches Basketball-Reference's season
+  advanced-stats tables (BPM, VORP, Age), keyed on BR's own per-player ID
+  rather than name, since multiple different NBA players have shared an
+  exact printed name within this window. Handles traded players' rows
+  (BR labels the combined-season row "2TM"/"3TM"/"4TM", not "TOT") and
+  the page's encoding (UTF-8, though the server doesn't declare it).
+- `aging_curve.py` — pools every player's real year-over-year BPM change
+  by age, minutes-weighted, into one curve. Ages with too few
+  player-transitions behind them share one pooled late-decline rate
+  instead of each claiming its own unreliable number. Confidence bands
+  come from the actual measured spread of real players' deltas, not an
+  assumed distribution; multi-year projections simulate forward by
+  resampling real per-age deltas rather than gluing single-year bands
+  together.
+- `name_matching.py` — joins nba_api names (used by `rapm.py`) to
+  Basketball-Reference names (used by `bref_data.py`) — the two sources
+  share no common player ID. Normalizes accents/punctuation/suffixes,
+  then falls back to a small manual map for the handful of real
+  nickname/name-order mismatches normalization can't resolve.
+- `player_report.py` — combines Phase 1's RAPM, this season's real BPM,
+  and the aging-curve-projected BPM trend per player into one table —
+  three separate signals shown side by side, never merged into a single
+  score.
 
 ## Working conventions
 

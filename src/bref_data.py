@@ -42,6 +42,11 @@ def fetch_season_advanced(season: str, sleep: float = 3.0) -> pd.DataFrame:
     url = f"https://www.basketball-reference.com/leagues/NBA_{year}_advanced.html"
     resp = requests.get(url, headers=HEADERS, timeout=30)
     resp.raise_for_status()
+    # BR's Content-Type header omits a charset, so requests falls back to
+    # guessing ISO-8859-1 (the HTTP default) - the actual page is UTF-8, so
+    # every accented name (Jokic, Doncic, Sengun, ...) comes out garbled
+    # unless we override the encoding before reading .text
+    resp.encoding = "utf-8"
 
     tables = pd.read_html(io.StringIO(resp.text), attrs={"id": "advanced"})
     df = tables[0]

@@ -101,7 +101,28 @@ and roster fit, culminating in a decision-support tool.
       almost entirely perimeter wings - correctly identifying the actual
       gap in OKC's real (guard/wing-heavy) roster construction rather than
       producing plausible-looking noise. See `src/` module breakdown below.
-- [ ] Phase 5 — Decision layer (tool + memo)
+- [x] **Phase 5 — Decision layer**: complete. A local Streamlit app
+      (`app.py`) over one joined table (`player_universe.py`) that stitches
+      Phases 1-3's per-player outputs together: current team, real minutes
+      played, age, real RAPM, real current BPM, projected BPM (+1y/+2y/+3y
+      with bands), and contract surplus score. Surplus score is the
+      default ranking a GM sees; RAPM, current BPM, projected BPM, and
+      team-scoped fit (reusing Phase 4's `roster_fit.py` unchanged) are
+      each just another sort over the same table, picked from a sidebar
+      dropdown - nothing is blended into one master score, the same
+      choice `player_report.py` and Phase 3's percentile-subtraction
+      already made. Clicking a row opens a per-player detail page: every
+      number above, the full aging-curve trajectory, and the player's
+      real shot-zone/play-type diet pulled fresh for just him. Real
+      minutes played is threaded through every view, since RAPM and
+      surplus_score (unlike current/projected BPM, which `player_report.py`
+      already hides below its own 500-minute floor) have no minutes floor
+      of their own - without it a player on a tiny sample could rank as a
+      top bargain with no visible signal the number behind it is noisier
+      than a starter's. Free agents (no real contract in our data, so no
+      real cost to rank them on) and a publicly-hosted version of the app
+      are both explicitly out of scope, deferred to a future phase. See
+      `src/` module breakdown below.
 
 ## Phase 1 module breakdown (`src/`)
 
@@ -215,6 +236,38 @@ and roster fit, culminating in a decision-support tool.
   compressed - no real player is ever a 100% unlike a real team, so even a
   great complement only scores ~60-70% raw, which reads as mediocre taken
   at face value but is actually the top of the real distribution.
+
+## Phase 5 module breakdown (`src/`, plus `app.py`)
+
+- `player_universe.py` — joins Phases 1-3's outputs into one table, one
+  row per player, keyed on nba_api's own `player_id`. Surplus value
+  (`surplus_value.py`) and the BPM/projection report (`player_report.py`)
+  are both keyed by Basketball-Reference names and read the same
+  underlying season file, so their `player` columns merge directly with no
+  fuzzy matching; RAPM (`rapm.py`) and current rosters (`roster_data.py`)
+  are both keyed by nba_api's numeric id instead, with no shared id
+  against the BR-name-keyed side, so this module re-runs the same
+  `name_matching` join `surplus_value.py`/`player_report.py` already do
+  internally (neither output keeps the matched id around) rather than
+  modifying either already-shipped module. Also carries through each
+  player's real minutes played this season, since RAPM and surplus_score
+  have no minutes floor of their own the way current/projected BPM do.
+- `decision_views.py` — one function per ranking question (surplus,
+  RAPM, current BPM, projected BPM, team fit), pure pandas in/out with no
+  I/O of its own, plus `player_detail`/`get_player_detail` (the project's
+  usual fetch/parse split) for a single player's full picture including
+  his real shot-zone/play-type diet, computed fresh for just him via
+  `shot_profile_data.py` rather than pulled from any team-scoped blend.
+  No view blends scores together - each sorts by its own real number and
+  shows the others as context, matching `player_report.py`'s "separate
+  signals, never merged" approach and Phase 3's percentile-subtraction
+  choice.
+- `app.py` (repo root) — the Streamlit UI: a thin layer with no logic of
+  its own, wiring `decision_views.py`'s functions to a sidebar view
+  picker (Surplus score is the default) and click-through row selection
+  into the player detail page. Local-only for now (`streamlit run app.py`,
+  opens in your browser); a publicly-hosted version is a separate, later
+  decision.
 
 ## Working conventions
 

@@ -38,6 +38,17 @@ uv sync
 This creates a `.venv/` and installs all dependencies from
 `pyproject.toml`.
 
+## Run the decision tool
+
+```bash
+uv run streamlit run app.py
+```
+
+Opens the Phase 5 decision tool in your browser: rank every player by
+surplus score (the default), RAPM, current BPM, projected BPM, or fit
+against a specific team's roster, and click into any player for their
+full detail page (aging-curve projection, shot-zone and play-type diet).
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

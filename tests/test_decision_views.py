@@ -2,6 +2,7 @@ import pandas as pd
 import pytest
 
 from src.decision_views import (
+    _ordinal,
     player_detail,
     rank_by_current_bpm,
     rank_by_fit,
@@ -9,6 +10,22 @@ from src.decision_views import (
     rank_by_rapm,
     rank_by_surplus,
 )
+
+
+# --- _ordinal ----------------------------------------------------------
+
+def test_ordinal_uses_the_right_suffix_including_the_teens_exception():
+    assert _ordinal(1) == "1st"
+    assert _ordinal(2) == "2nd"
+    assert _ordinal(3) == "3rd"
+    assert _ordinal(4) == "4th"
+    assert _ordinal(0) == "0th"
+    # the 11th-13th teens exception - not 11st/12nd/13rd
+    assert _ordinal(11) == "11th"
+    assert _ordinal(12) == "12th"
+    assert _ordinal(13) == "13th"
+    assert _ordinal(21) == "21st"
+    assert _ordinal(100) == "100th"
 
 
 def make_universe():

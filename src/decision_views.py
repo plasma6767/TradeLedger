@@ -25,12 +25,21 @@ def _percentile(series: pd.Series) -> pd.Series:
     return series.rank(pct=True) * 100
 
 
+def _ordinal(n: float) -> str:
+    n = int(round(n))
+    if 10 <= n % 100 <= 20:
+        suffix = "th"
+    else:
+        suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{n}{suffix}"
+
+
 def rank_by_surplus(universe: pd.DataFrame) -> pd.DataFrame:
     """Default GM view: best contract value first."""
     table = universe.sort_values("surplus_score", ascending=False).copy()
     table["reasoning"] = [
-        f"surplus score {score:+.0f} ({value_pct:.0f}th percentile production vs "
-        f"{cost_pct:.0f}th percentile cost)"
+        f"surplus score {score:+.0f} ({_ordinal(value_pct)} percentile production vs "
+        f"{_ordinal(cost_pct)} percentile cost)"
         for score, value_pct, cost_pct in zip(
             table["surplus_score"], table["value_percentile"], table["cost_percentile"]
         )
@@ -42,7 +51,7 @@ def rank_by_rapm(universe: pd.DataFrame) -> pd.DataFrame:
     table = universe.sort_values("rapm", ascending=False).copy()
     percentile = _percentile(table["rapm"])
     table["reasoning"] = [
-        f"{rapm:+.1f} RAPM this season ({pct:.0f}th percentile leaguewide)"
+        f"{rapm:+.1f} RAPM this season ({_ordinal(pct)} percentile leaguewide)"
         for rapm, pct in zip(table["rapm"], percentile)
     ]
     return table.reset_index(drop=True)
@@ -52,7 +61,7 @@ def rank_by_current_bpm(universe: pd.DataFrame) -> pd.DataFrame:
     table = universe.dropna(subset=["current_bpm"]).sort_values("current_bpm", ascending=False).copy()
     percentile = _percentile(table["current_bpm"])
     table["reasoning"] = [
-        f"{bpm:+.1f} BPM this season ({pct:.0f}th percentile leaguewide)"
+        f"{bpm:+.1f} BPM this season ({_ordinal(pct)} percentile leaguewide)"
         for bpm, pct in zip(table["current_bpm"], percentile)
     ]
     return table.reset_index(drop=True)
